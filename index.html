@@ -38,6 +38,8 @@
   textarea{width:100%;min-height:64px;resize:vertical;border:1.5px solid var(--line);
     border-radius:12px;padding:12px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink)}
   textarea:focus{outline:none;border-color:var(--gold)}
+  #keyInput,#keyInput2{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:16px;letter-spacing:.06em;text-transform:uppercase;background:#fff}
+  #keyInput:focus,#keyInput2:focus{outline:none;border-color:var(--gold)}
   .btn{display:inline-block;border:0;border-radius:99px;padding:13px 22px;font-size:16px;
     cursor:pointer;font-family:inherit}
   .btn-gold{background:linear-gradient(180deg,var(--cta1),var(--cta2));color:#fff;font-weight:700;
@@ -101,7 +103,7 @@
 <div class="wrap">
 
   <header>
-    <span class="badge">Vista previa de diseño · la IA en vivo aún no está conectada</span>
+    <span class="badge">Respuestas con base en la Escritura · la IA en vivo aún no está conectada</span>
     <h1>Jesús te responde</h1>
     <p class="sub" id="greeting">¿Qué pesa hoy en tu corazón? Pregúntale como a un amigo.</p>
     <div class="chips-row">
@@ -170,7 +172,7 @@
     <h2>✦ Jesús te responde PRO</h2>
     <p class="hint">Para quien quiere ir más hondo, todos los días.</p>
     <ul>
-      <li><b>Preguntas ilimitadas</b> con inteligencia artificial: cualquier tema, cualquier pregunta, con respaldo bíblico.</li>
+      <li><b>Preguntas ilimitadas</b>: cualquier tema, cualquier pregunta, con respaldo bíblico.</li>
       <li><b>Respuestas más profundas</b>, con oración guiada al final.</li>
       <li>Planes de oración de 7 días para cada situación.</li>
       <li>Favoritas e historial sin límite, y escuchar todas las respuestas.</li>
@@ -184,11 +186,20 @@
       <button class="btn btn-ghost" id="demoBtn" style="color:#ffe9b0;border-color:rgba(255,233,176,.5)">Ver cómo se vería PRO</button>
     </div>
     <p class="hint" style="margin-top:10px">Sin tarjeta internacional: pides tu clave al privado y listo. Próximamente también dentro de Google Play.</p>
+    <div style="margin-top:14px;border-top:1px solid rgba(0,0,0,.08);padding-top:12px">
+      <p class="hint" style="margin:0 0 6px">¿Ya pagaste? Activa PRO con tu clave en este teléfono:</p>
+      <p class="hint" style="margin:0 0 6px">Código de este teléfono: <b id="deviceCode">…</b></p>
+      <label for="keyInput">Tu clave PRO</label>
+      <input id="keyInput" type="text" placeholder="Ejemplo: M-XXXXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn btn-gold" id="keyBtn">Activar PRO</button>
+      </div>
+      <p class="hint" id="keyMsg" style="margin-top:8px"></p>
+    </div>
   </section>
 
   <footer>
-    Vista previa de diseño: los botones PRO muestran cómo se vería la versión paga;
-    la inteligencia artificial en vivo todavía no está conectada.<br>
+    La inteligencia artificial en vivo todavía no está conectada: las respuestas de hoy vienen de la base escrita, con respaldo bíblico.<br>
     Las respuestas son una imitación fiel, con base en la Escritura: nunca inventan citas.
     Si atraviesas una crisis, busca también ayuda humana y profesional cercana.
     La oración acompaña, nunca sustituye, la atención médica.
@@ -202,7 +213,7 @@
     <h2>Usaste tus 3 preguntas gratis de hoy</h2>
     <p class="hint">Mañana vuelven tus 3 preguntas gratis. Con PRO no hay límite:</p>
     <ul>
-      <li>Preguntas ilimitadas con inteligencia artificial, cualquier tema.</li>
+      <li>Preguntas ilimitadas, cualquier tema, con respaldo bíblico.</li>
       <li>Respuestas más profundas, con oración guiada.</li>
       <li>Planes de oración de 7 días, favoritas e historial sin límite.</li>
     </ul>
@@ -213,6 +224,14 @@
     <div class="btn-row">
       <button class="btn btn-gold" id="buyBtn2">Activar PRO por WhatsApp</button>
       <button class="btn btn-ghost" id="tomorrowBtn">Seguir gratis mañana</button>
+    </div>
+    <div style="margin-top:12px;border-top:1px solid rgba(0,0,0,.08);padding-top:10px">
+      <p class="hint" style="margin:0 0 6px">¿Ya tienes tu clave? Escríbela aquí:</p>
+      <input id="keyInput2" type="text" placeholder="Ejemplo: M-XXXXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn btn-gold" id="keyBtn2">Activar PRO</button>
+      </div>
+      <p class="hint" id="keyMsg2" style="margin-top:8px"></p>
     </div>
     <p class="demo-note">Demostración: el pago real se hace pidiendo la clave al privado por WhatsApp,
       como ya vendes tus cursos. Esta vista previa no cobra nada ni guarda tus datos fuera de tu teléfono.</p>
@@ -1084,6 +1103,93 @@ function storeSet(k, v){
   try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){}
 }
 /* ---------- saludo, versículo, racha ---------- */
+
+/* ---------- claves PRO por teléfono ---------- */
+var JTR_SECRET = "6a20e33df528d77ccc86395a2df6b613";
+var JTR_ALPHA = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+var JTR_MONTHS = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+function jtrHashPair(str){
+  var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for(var i = 0; i < str.length; i++){
+    var ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return [h1 >>> 0, h2 >>> 0];
+}
+function jtrMakeCode(device, plan){
+  var pr = jtrHashPair(JTR_SECRET + "|" + device + "|" + plan);
+  var s = "", x = pr[0], i;
+  for(i = 0; i < 4; i++){ s += JTR_ALPHA[x % JTR_ALPHA.length]; x = Math.floor(x / JTR_ALPHA.length); }
+  x = pr[1];
+  for(i = 0; i < 3; i++){ s += JTR_ALPHA[x % JTR_ALPHA.length]; x = Math.floor(x / JTR_ALPHA.length); }
+  return plan + "-" + s;
+}
+function jtrNormCode(c){ return (c || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+function jtrDeviceId(){
+  var d = storeGet("jtr_device", null);
+  if(!d){
+    var buf = new Uint8Array(6), i;
+    var filled = false;
+    if(window.crypto && window.crypto.getRandomValues){ try{ window.crypto.getRandomValues(buf); filled = true; }catch(e){ filled = false; } }
+    if(!filled){ for(i = 0; i < 6; i++){ buf[i] = Math.floor(Math.random() * 256); } }
+    var s = "";
+    for(i = 0; i < 6; i++){ s += JTR_ALPHA[buf[i] % JTR_ALPHA.length]; }
+    d = s.slice(0, 3) + "-" + s.slice(3);
+    storeSet("jtr_device", d);
+  }
+  return d;
+}
+function jtrTodayNum(){ var d = new Date(); return Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000); }
+function jtrProState(){
+  var p = storeGet("jtr_pro", null);
+  if(!p || typeof p.until !== "number"){ return null; }
+  if(p.until < jtrTodayNum()){ return {expired: true, until: p.until, untilText: p.untilText || "", plan: p.plan || ""}; }
+  return {active: true, until: p.until, untilText: p.untilText || "", plan: p.plan || ""};
+}
+function isProActive(){ var s = jtrProState(); return !!(s && s.active); }
+function proUnlimited(){ return proDemo || isProActive(); }
+function jtrActivate(codeRaw){
+  var code = jtrNormCode(codeRaw);
+  var device = jtrDeviceId();
+  var plans = ["M", "A"];
+  for(var i = 0; i < plans.length; i++){
+    if(code === jtrNormCode(jtrMakeCode(device, plans[i]))){
+      var days = plans[i] === "A" ? 365 : 30;
+      var dt = new Date(); dt.setDate(dt.getDate() + days);
+      var untilText = dt.getDate() + " de " + JTR_MONTHS[dt.getMonth()] + " de " + dt.getFullYear();
+      storeSet("jtr_pro", {plan: plans[i], until: jtrTodayNum() + days, untilText: untilText});
+      return {ok: true, plan: plans[i], untilText: untilText};
+    }
+  }
+  return {ok: false};
+}
+function renderKeyBlock(){
+  var dev = jtrDeviceId();
+  var dc = $("deviceCode"); if(dc){ dc.textContent = dev; }
+  var st = jtrProState();
+  var txt = "";
+  if(st && st.active){ txt = "PRO activo hasta " + st.untilText + " en este teléfono."; }
+  else if(st && st.expired){ txt = "Tu PRO venció el " + (st.untilText || "la fecha guardada") + ". Pide una clave nueva por WhatsApp."; }
+  var m1 = $("keyMsg"); if(m1){ m1.textContent = txt; }
+  var m2 = $("keyMsg2"); if(m2){ m2.textContent = txt; }
+}
+function tryActivate(inputEl, msgEl){
+  if(!inputEl) return;
+  var r = jtrActivate(inputEl.value);
+  if(r.ok){
+    inputEl.value = "";
+    closeSheet();
+    renderFree(); renderKeyBlock();
+    if(msgEl){ msgEl.textContent = "¡PRO activado hasta " + r.untilText + " en este teléfono!"; }
+    $("q").focus();
+  } else {
+    if(msgEl){ msgEl.textContent = "Esa clave no es válida para este teléfono. Revisa que la escribiste igual, sin espacios de más."; }
+  }
+}
+
 (function init(){
   if(synth){ try{ synth.getVoices(); }catch(e){} }
   var h = new Date().getHours();
@@ -1104,7 +1210,7 @@ function storeSet(k, v){
   else { st = {last: tk, count: 1}; }
   storeSet("jtr_streak", st);
   $("streak").textContent = st.count + (st.count === 1 ? " día" : " días");
-  renderFree(); renderFavs(); renderChips(); renderHistory();
+  renderFree(); renderFavs(); renderChips(); renderHistory(); renderKeyBlock();
 })();
 function freeState(){
   var today = new Date();
@@ -1114,16 +1220,18 @@ function freeState(){
 }
 function renderFree(){
   var fs = freeState();
-  var shown = proDemo ? FREE_PER_DAY : fs.left;
+  var pro = isProActive();
+  var shown = (proDemo || pro) ? FREE_PER_DAY : fs.left;
   var dots = "";
   for(var i=0;i<FREE_PER_DAY;i++){
     dots += '<span class="dot' + (i < shown ? "" : " off") + '"></span>';
   }
-  $("freeDots").innerHTML = dots + "<span>" + (proDemo ? "PRO (demostración): ilimitado" :
-    (fs.left > 0 ? fs.left + " de " + FREE_PER_DAY + " preguntas gratis hoy" : "Sin preguntas gratis hoy")) + "</span>";
-  $("freeNote").textContent = proDemo ? "Estás viendo la experiencia PRO. La IA en vivo aún no está conectada." :
-    (fs.left > 0 ? "Gratis: 3 preguntas al día con respuestas de la base escrita. PRO: ilimitadas, con inteligencia artificial." :
-    "Mañana vuelven tus 3 preguntas gratis. Con PRO no tendrías que esperar.");
+  $("proState").textContent = pro ? "✦ PRO" : (proDemo ? "PRO (demostración)" : "Gratis");
+  $("freeDots").innerHTML = dots + "<span>" + (pro ? "PRO: ilimitado" : (proDemo ? "PRO (demostración): ilimitado" :
+    (fs.left > 0 ? fs.left + " de " + FREE_PER_DAY + " preguntas gratis hoy" : "Sin preguntas gratis hoy"))) + "</span>";
+  $("freeNote").textContent = pro ? "PRO activo hasta " + jtrProState().untilText + ". La IA en vivo aún no está conectada." : (proDemo ? "Estás viendo la experiencia PRO. La IA en vivo aún no está conectada." :
+    (fs.left > 0 ? "Gratis: 3 preguntas al día con respuestas de la base escrita. PRO: ilimitadas, con respuestas más profundas." :
+    "Mañana vuelven tus 3 preguntas gratis. Con PRO no tendrías que esperar."));
 }
 function renderChips(){
   var ids = ["ansiedad","tristeza","perdonar","familia","dinero","duelo","fe","esperanza"];
@@ -1167,7 +1275,7 @@ function findTopic(q){
 function askTopic(id, countIt){
   var t = KB.find(function(x){ return x.id === id; });
   if(!t) return;
-  if(countIt && !proDemo){
+  if(countIt && !proUnlimited()){
     var fs = freeState();
     if(fs.left <= 0){ openSheet(); return; }
     fs.left = Math.max(0, fs.left - 1);
@@ -1178,11 +1286,11 @@ function askTopic(id, countIt){
 function ask(){
   var q = $("q").value.trim();
   if(!q){ $("q").focus(); $("q").placeholder = "Escríbeme tu pregunta primero…"; return; }
-  if(!proDemo){
+  if(!proUnlimited()){
     var fs = freeState();
     if(fs.left <= 0){ openSheet(); return; }
   }
-  if(!proDemo){
+  if(!proUnlimited()){
     var fs2 = freeState();
     fs2.left = Math.max(0, fs2.left - 1);
     storeSet("jtr_free", fs2);
@@ -1204,7 +1312,7 @@ function showReserve(q){
 function showAnswer(t, q){
   currentTopic = t;
   stopSpeak();
-  var isProSample = proDemo && !!PRO_EXTRA[t.id];
+  var isProSample = proUnlimited() && !!PRO_EXTRA[t.id];
   $("answerTag").innerHTML = isProSample ? '<span class="pro-tag">✦ Muestra de respuesta PRO</span>' : "";
   var text = t.voice + (isProSample ? "\n\n" + PRO_EXTRA[t.id] : "");
   $("answerText").textContent = text;
@@ -1290,12 +1398,13 @@ function shareText(text){
 function openSheet(){ $("sheetBack").classList.add("show"); }
 function closeSheet(){ $("sheetBack").classList.remove("show"); }
 function buyAction(btn){
-  var msg = "Hola, quiero activar Jesús te responde PRO ($2 al mes / $10 al año).";
+  var msg = "Hola, quiero activar Jesús te responde PRO ($2 al mes / $10 al año). Mi código de teléfono es " + jtrDeviceId() + ".";
   var waUrl = "https://wa.me/584143956441?text=" + encodeURIComponent(msg);
   if(navigator.clipboard){ navigator.clipboard.writeText(msg).catch(function(){}); }
   window.open(waUrl, "_blank", "noopener");
 }
 function enableProDemo(){
+  if(isProActive()){ closeSheet(); return; }
   if(proDemo){ closeSheet(); return; }
   proDemo = true;
   closeSheet();
@@ -1342,7 +1451,7 @@ function toggleMic(){
   recog.onresult = function(ev){
     var interim = "";
     for(var i = ev.resultIndex; i < ev.results.length; i++){
-      if(ev.results[i].isFinal){ finalText += ev.results[i][0].transcript; }
+      if(ev.results[i].isFinal){ finalText += (finalText ? " " : "") + ev.results[i][0].transcript; }
       else { interim += ev.results[i][0].transcript; }
     }
     $("q").value = (finalText + " " + interim).trim().replace(/\s+/g, " ");
@@ -1412,6 +1521,10 @@ $("tomorrowBtn").addEventListener("click", closeSheet);
 $("buyBtn").addEventListener("click", function(){ buyAction($("buyBtn")); });
 $("buyBtn2").addEventListener("click", function(){ buyAction($("buyBtn2")); });
 $("demoBtn").addEventListener("click", enableProDemo);
+if($("keyBtn")){ $("keyBtn").addEventListener("click", function(){ tryActivate($("keyInput"), $("keyMsg")); }); }
+if($("keyBtn2")){ $("keyBtn2").addEventListener("click", function(){ tryActivate($("keyInput2"), $("keyMsg2")); }); }
+if($("keyInput")){ $("keyInput").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); tryActivate($("keyInput"), $("keyMsg")); } }); }
+if($("keyInput2")){ $("keyInput2").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); tryActivate($("keyInput2"), $("keyMsg2")); } }); }
 </script>
 </body>
 </html>
