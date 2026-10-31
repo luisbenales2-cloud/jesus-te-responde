@@ -1019,7 +1019,8 @@ var PRO_EXTRA = {
 /* Solo para afinar la búsqueda en esta vista previa; las respuestas no cambian. */
 var DEMO_KEYS = {
   fe: ["tener mas fe", "mas fe", "quiero creer", "aumenta mi fe", "creer mas", "fortalece mi fe"],
-  confesion: ["confesar", "quiero confesarme"]
+  confesion: ["confesar", "quiero confesarme"],
+  papa: ["obedecer al papa", "por que obedecer al papa", "sucesor de pedro", "las llaves de pedro", "el papa"]
 };
 /* "papa" solo no decide: "mi papá" no es el Papa. */
 var DEMO_SKIP = { papa: ["papa"] };
@@ -1057,6 +1058,7 @@ function storeSet(k, v){
 }
 /* ---------- saludo, versículo, racha ---------- */
 (function init(){
+  if(synth){ try{ synth.getVoices(); }catch(e){} }
   var h = new Date().getHours();
   var g = h < 12 ? "Buenos días" : (h < 19 ? "Buenas tardes" : "Buenas noches");
   $("greeting").textContent = g + ". ¿Qué pesa hoy en tu corazón? Pregúntale como a un amigo.";
@@ -1085,9 +1087,10 @@ function freeState(){
 }
 function renderFree(){
   var fs = freeState();
+  var shown = proDemo ? FREE_PER_DAY : fs.left;
   var dots = "";
   for(var i=0;i<FREE_PER_DAY;i++){
-    dots += '<span class="dot' + (i < fs.left ? "" : " off") + '"></span>';
+    dots += '<span class="dot' + (i < shown ? "" : " off") + '"></span>';
   }
   $("freeDots").innerHTML = dots + "<span>" + (proDemo ? "PRO (demostración): ilimitado" :
     (fs.left > 0 ? fs.left + " de " + FREE_PER_DAY + " preguntas gratis hoy" : "Sin preguntas gratis hoy")) + "</span>";
@@ -1108,7 +1111,7 @@ function renderChips(){
   $("chips").innerHTML = html;
   var btns = $("chips").querySelectorAll("button");
   btns.forEach(function(b){
-    b.addEventListener("click", function(){ askTopic(b.getAttribute("data-id")); });
+    b.addEventListener("click", function(){ askTopic(b.getAttribute("data-id"), true); });
   });
 }
 function keyScore(nq, k){
@@ -1134,9 +1137,16 @@ function findTopic(q){
   });
   return bestScore >= 3 ? best : null;
 }
-function askTopic(id){
+function askTopic(id, countIt){
   var t = KB.find(function(x){ return x.id === id; });
-  if(t){ showAnswer(t, $("q").value || t.chip); }
+  if(!t) return;
+  if(countIt && !proDemo){
+    var fs = freeState();
+    if(fs.left <= 0){ openSheet(); return; }
+    fs.left = Math.max(0, fs.left - 1);
+    storeSet("jtr_free", fs);
+  }
+  showAnswer(t, $("q").value || t.chip);
 }
 function ask(){
   var q = $("q").value.trim();
@@ -1145,13 +1155,13 @@ function ask(){
     var fs = freeState();
     if(fs.left <= 0){ openSheet(); return; }
   }
-  var t = findTopic(q);
-  if(!t){ showReserve(q); return; }
   if(!proDemo){
     var fs2 = freeState();
     fs2.left = Math.max(0, fs2.left - 1);
     storeSet("jtr_free", fs2);
   }
+  var t = findTopic(q);
+  if(!t){ showReserve(q); return; }
   showAnswer(t, q);
 }
 function showReserve(q){
@@ -1178,6 +1188,7 @@ function showAnswer(t, q){
   $("favBtn").textContent = isFav(t.id) ? "★ En favoritas" : "☆ Guardar en favoritas";
   $("favBtn").classList.toggle("on", isFav(t.id));
   history.unshift({chip: t.chip, id: t.id});
+  if(history.length > 8){ history.length = 8; }
   renderHistory(); renderFree();
   if(voiceAsked){ voiceAsked = false; speakText(text, $("hearBtn")); }
   $("answerCard").scrollIntoView({behavior:"smooth", block:"start"});
@@ -1185,6 +1196,7 @@ function showAnswer(t, q){
 function renderHistory(){
   if(!history.length){ return; }
   $("histList").innerHTML = history.map(function(h){
+    if(h.id === "__reserve__"){ return '<div class="fav-item"><span>' + h.chip + "</span></div>"; }
     return '<div class="fav-item"><span>' + h.chip + '</span><button data-id="' + h.id + '">Ver</button></div>';
   }).join("");
   bindListButtons($("histList"));
@@ -1214,19 +1226,24 @@ function bindListButtons(el){
 /* ---------- escuchar ---------- */
 function speakText(text, btn){
   if(!synth){ return; }
-  if(speaking){ stopSpeak(); if(btn) btn.textContent = "🔊 Escuchar"; return; }
+  var restLabel = "";
+  if(btn){
+    if(!btn._restLabel){ btn._restLabel = btn.textContent; }
+    restLabel = btn._restLabel;
+  }
+  if(speaking){ stopSpeak(); if(btn) btn.textContent = restLabel; return; }
   var parts = text.match(/[^.!?]+[.!?]+["»)]?|\S[^.!?]+$/g) || [text];
   var idx = 0; speaking = true;
   if(btn) btn.textContent = "■ Detener";
   var voices = synth.getVoices();
   var v = voices.find(function(x){ return /es/i.test(x.lang); }) || null;
   function next(){
-    if(!speaking || idx >= parts.length){ speaking = false; if(btn) btn.textContent = "🔊 Escuchar"; return; }
+    if(!speaking || idx >= parts.length){ speaking = false; if(btn) btn.textContent = restLabel; return; }
     var u = new SpeechSynthesisUtterance(parts[idx].trim());
     if(v) u.voice = v;
     u.lang = "es-ES"; u.rate = 0.95;
     u.onend = function(){ idx++; next(); };
-    u.onerror = function(){ speaking = false; if(btn) btn.textContent = "🔊 Escuchar"; };
+    u.onerror = function(){ speaking = false; if(btn) btn.textContent = restLabel; };
     synth.speak(u);
   }
   next();
@@ -1246,16 +1263,13 @@ function shareText(text){
 function openSheet(){ $("sheetBack").classList.add("show"); }
 function closeSheet(){ $("sheetBack").classList.remove("show"); }
 function buyAction(btn){
-  var msg = "Hola, quiero activar Jesús te responde PRO.";
-  function done(){
-    var old = btn.textContent;
-    btn.textContent = "Mensaje copiado: escríbeme al privado ✓";
-    setTimeout(function(){ btn.textContent = old; }, 3500);
-  }
-  if(navigator.clipboard){ navigator.clipboard.writeText(msg).then(done, done); }
-  else { done(); }
+  var msg = "Hola, quiero activar Jesús te responde PRO ($2 al mes / $10 al año).";
+  var waUrl = "https://wa.me/584143956441?text=" + encodeURIComponent(msg);
+  if(navigator.clipboard){ navigator.clipboard.writeText(msg).catch(function(){}); }
+  window.open(waUrl, "_blank", "noopener");
 }
 function enableProDemo(){
+  if(proDemo){ closeSheet(); return; }
   proDemo = true;
   closeSheet();
   $("proState").textContent = "PRO (demostración)";
@@ -1268,7 +1282,7 @@ function enableProDemo(){
   $("q").focus();
 }
 /* ---------- micrófono: hablarle a Jesús ---------- */
-var recog = null, listening = false;
+var recog = null, listening = false, micError = "";
 var RecogCtor = (typeof window !== "undefined") &&
   (window.SpeechRecognition || window.webkitSpeechRecognition) || null;
 function setupMic(){
@@ -1291,6 +1305,7 @@ function updateMicUI(){
 function toggleMic(){
   if(listening){ try{ recog.stop(); }catch(e){} return; }
   stopSpeak();
+  micError = "";
   recog = new RecogCtor();
   recog.lang = "es-ES";
   recog.interimResults = true;
@@ -1303,7 +1318,7 @@ function toggleMic(){
       if(ev.results[i].isFinal){ finalText += ev.results[i][0].transcript; }
       else { interim += ev.results[i][0].transcript; }
     }
-    $("q").value = (finalText + interim).trim();
+    $("q").value = (finalText + " " + interim).trim().replace(/\s+/g, " ");
   };
   recog.onstart = function(){
     listening = true;
@@ -1313,18 +1328,28 @@ function toggleMic(){
   recog.onend = function(){
     listening = false;
     updateMicUI();
-    $("micNote").textContent = "";
     var q = $("q").value.trim();
-    if(q){ voiceAsked = true; ask(); }
+    if(micError){
+      $("micNote").textContent = micError;
+      micError = "";
+    } else if(q){
+      $("micNote").textContent = "";
+      voiceAsked = true; ask();
+    } else {
+      $("micNote").textContent = "No te escuché. Toca el micrófono e inténtalo de nuevo.";
+    }
   };
   recog.onerror = function(ev){
     listening = false;
     updateMicUI();
     if(ev.error === "not-allowed" || ev.error === "service-not-allowed"){
-      $("micNote").textContent = "Permite el micrófono para hablar. Mientras tanto, puedes escribir tu pregunta.";
+      micError = "Permite el micrófono para hablar. Mientras tanto, puedes escribir tu pregunta.";
     } else if(ev.error === "no-speech"){
-      $("micNote").textContent = "No te escuché. Toca el micrófono e inténtalo de nuevo.";
+      micError = "No te escuché. Toca el micrófono e inténtalo de nuevo.";
+    } else {
+      micError = "No pude escuchar bien. Revisa el permiso del micrófono e inténtalo de nuevo.";
     }
+    $("micNote").textContent = micError;
   };
   try{ recog.start(); }catch(e){ listening = false; updateMicUI(); }
 }
