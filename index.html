@@ -1436,11 +1436,17 @@ function chosenVoice(){
 function previewVoice(){
   if(!synth){ return; }
   stopSpeak();
-  var v = chosenVoice();
+  var v = chosenVoice() || pickVoice(synth.getVoices());
   if(!v){ return; }
-  var u = new SpeechSynthesisUtterance("Hola, esta es la voz que leerá las respuestas.");
-  u.voice = v; u.lang = "es-ES"; u.rate = 0.9; u.pitch = 0.7;
-  synth.speak(u);
+  var triedPlain = false;
+  function say(plain){
+    var u = new SpeechSynthesisUtterance("Hola, esta es la voz que leerá las respuestas.");
+    if(!plain){ u.voice = v; u.lang = "es-ES"; u.rate = 0.9; u.pitch = 0.7; }
+    else { u.lang = "es-ES"; }
+    u.onerror = function(){ if(!triedPlain){ triedPlain = true; say(true); } };
+    synth.speak(u);
+  }
+  say(false);
 }
 function setSpeakingUI(on){
   var f = $("jesusFace");
@@ -1458,13 +1464,25 @@ function speakText(text, btn){
   var idx = 0; speaking = true; setSpeakingUI(true);
   if(btn) btn.textContent = "■ Detener";
   var v = chosenVoice() || pickVoice(synth.getVoices());
+  var voiceBroken = false;
   function next(){
     if(!speaking || idx >= parts.length){ speaking = false; setSpeakingUI(false); if(btn) btn.textContent = restLabel; return; }
+    say(voiceBroken);
+  }
+  function say(plain){
+    var done = false;
     var u = new SpeechSynthesisUtterance(parts[idx].trim());
-    if(v) u.voice = v;
-    u.lang = "es-ES"; u.rate = 0.9; u.pitch = 0.7;
-    u.onend = function(){ idx++; next(); };
-    u.onerror = function(){ speaking = false; setSpeakingUI(false); if(btn) btn.textContent = restLabel; };
+    if(!plain && v) u.voice = v;
+    u.lang = "es-ES";
+    if(!plain){ u.rate = 0.9; u.pitch = 0.7; }
+    u.onend = function(){ if(done) return; done = true; idx++; next(); };
+    u.onerror = function(){
+      if(done) return; done = true;
+      if(!speaking) return;
+      if(!plain){ voiceBroken = true; say(true); return; }
+      speaking = false; setSpeakingUI(false); if(btn) btn.textContent = restLabel;
+      if(!window.__jtrVoiceWarned){ window.__jtrVoiceWarned = true; alert("No se pudo hablar con la voz elegida. Elige otra voz en la lista 'Voz al escuchar' o cierra el navegador y vuelve a abrir la aplicación."); }
+    };
     synth.speak(u);
   }
   next();
