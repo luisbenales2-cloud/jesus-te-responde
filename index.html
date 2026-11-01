@@ -41,6 +41,7 @@
   #keyInput,#keyInput2{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:16px;letter-spacing:.06em;text-transform:uppercase;background:#fff}
   #keyInput:focus,#keyInput2:focus{outline:none;border-color:var(--gold)}
   .jesus-face{width:96px;height:96px;border-radius:50%;object-fit:cover;border:3px solid var(--gold);box-shadow:0 0 0 4px rgba(255,215,130,.25);display:block;margin:2px auto 8px}
+  #voiceSelect{font-size:14px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;background:#fff;max-width:100%}
   .jesus-face.speaking{animation:jtrPulse 1.6s ease-in-out infinite}
   @keyframes jtrPulse{0%,100%{box-shadow:0 0 0 4px rgba(255,215,130,.25)}50%{box-shadow:0 0 0 11px rgba(255,215,130,.45)}}
   .btn{display:inline-block;border:0;border-radius:99px;padding:13px 22px;font-size:16px;
@@ -140,6 +141,7 @@
     </div>
     <p class="hint" id="freeNote" style="margin-top:10px"></p>
     <p class="hint" id="micNote" style="margin-top:6px"></p>
+    <p class="hint" id="voiceRow" style="margin-top:8px">Voz al escuchar: <select id="voiceSelect" aria-label="Voz para escuchar"></select> <span style="font-size:12px">Elige y escucha cada voz.</span></p>
   </section>
 
   <!-- Sugerencias -->
@@ -1226,6 +1228,12 @@ function tryActivate(inputEl, msgEl){
   storeSet("jtr_streak", st);
   $("streak").textContent = st.count + (st.count === 1 ? " día" : " días");
   renderFree(); renderFavs(); renderChips(); renderHistory(); renderKeyBlock();
+  if(!synth){ var vr = $("voiceRow"); if(vr){ vr.style.display = "none"; } }
+  else {
+    fillVoiceSelect();
+    try{ if(synth.addEventListener){ synth.addEventListener("voiceschanged", fillVoiceSelect); } }catch(e){}
+    try{ if(synth.onvoiceschanged !== undefined){ synth.onvoiceschanged = fillVoiceSelect; } }catch(e){}
+  }
 })();
 function freeState(){
   var today = new Date();
@@ -1389,6 +1397,51 @@ function pickVoice(voices){
   for(var i = 0; i < pool.length; i++){ if(voiceLooksMale(pool[i].name)){ return pool[i]; } }
   return pool[0] || null;
 }
+function voiceKey(v){ return (v && v.voiceURI) || ((v ? (v.name || "") : "") + "|" + (v ? (v.lang || "") : "")); }
+function fillVoiceSelect(){
+  var sel = $("voiceSelect");
+  if(!sel || !synth){ return; }
+  var voices = synth.getVoices();
+  var es = voices.filter(function(x){ return /^es/i.test(x.lang || ""); });
+  var saved = storeGet("jtr_voice", null);
+  var prev = sel.value;
+  sel.innerHTML = "";
+  if(!es.length){
+    var o0 = document.createElement("option");
+    o0.value = ""; o0.textContent = "Voz del teléfono (predeterminada)";
+    sel.appendChild(o0);
+    return;
+  }
+  es.forEach(function(v){
+    var o = document.createElement("option");
+    o.value = voiceKey(v);
+    o.textContent = (v.name || "Voz en español") + " (" + (v.lang || "") + ")";
+    sel.appendChild(o);
+  });
+  var want = saved || prev;
+  var found = false;
+  for(var i = 0; i < sel.options.length; i++){ if(sel.options[i].value === want){ sel.selectedIndex = i; found = true; break; } }
+  if(!found){ sel.selectedIndex = 0; }
+}
+function chosenVoice(){
+  if(!synth){ return null; }
+  var voices = synth.getVoices();
+  var sel = $("voiceSelect");
+  var want = (sel && sel.value) || storeGet("jtr_voice", null);
+  if(want){
+    for(var i = 0; i < voices.length; i++){ if(voiceKey(voices[i]) === want){ return voices[i]; } }
+  }
+  return null;
+}
+function previewVoice(){
+  if(!synth){ return; }
+  stopSpeak();
+  var v = chosenVoice();
+  if(!v){ return; }
+  var u = new SpeechSynthesisUtterance("Hola, esta es la voz que leerá las respuestas.");
+  u.voice = v; u.lang = "es-ES"; u.rate = 0.95; u.pitch = 0.8;
+  synth.speak(u);
+}
 function setSpeakingUI(on){
   var f = $("jesusFace");
   if(f){ f.classList.toggle("speaking", !!on); }
@@ -1404,7 +1457,7 @@ function speakText(text, btn){
   var parts = text.match(/[^.!?]+[.!?]+["»)]?|\S[^.!?]+$/g) || [text];
   var idx = 0; speaking = true; setSpeakingUI(true);
   if(btn) btn.textContent = "■ Detener";
-  var v = pickVoice(synth.getVoices());
+  var v = chosenVoice() || pickVoice(synth.getVoices());
   function next(){
     if(!speaking || idx >= parts.length){ speaking = false; setSpeakingUI(false); if(btn) btn.textContent = restLabel; return; }
     var u = new SpeechSynthesisUtterance(parts[idx].trim());
@@ -1555,6 +1608,7 @@ $("buyBtn").addEventListener("click", function(){ buyAction($("buyBtn")); });
 $("buyBtn2").addEventListener("click", function(){ buyAction($("buyBtn2")); });
 $("demoBtn").addEventListener("click", enableProDemo);
 if($("keyBtn")){ $("keyBtn").addEventListener("click", function(){ tryActivate($("keyInput"), $("keyMsg")); }); }
+if($("voiceSelect")){ $("voiceSelect").addEventListener("change", function(){ storeSet("jtr_voice", $("voiceSelect").value); previewVoice(); }); }
 if($("keyBtn2")){ $("keyBtn2").addEventListener("click", function(){ tryActivate($("keyInput2"), $("keyMsg2")); }); }
 if($("keyInput")){ $("keyInput").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); tryActivate($("keyInput"), $("keyMsg")); } }); }
 if($("keyInput2")){ $("keyInput2").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); tryActivate($("keyInput2"), $("keyMsg2")); } }); }
