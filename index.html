@@ -107,7 +107,7 @@
 <div class="wrap">
 
   <header>
-    <span class="badge">Respuestas con base en la Escritura · la IA en vivo aún no está conectada</span>
+    <span class="badge">Respuestas con base en la Escritura</span>
     <h1>Jesús te responde</h1>
     <p class="sub" id="greeting">¿Qué pesa hoy en tu corazón? Pregúntale como a un amigo.</p>
     <div class="chips-row">
@@ -206,7 +206,7 @@
   </section>
 
   <footer>
-    La inteligencia artificial en vivo todavía no está conectada: las respuestas de hoy vienen de la base escrita, con respaldo bíblico.<br>
+    La inteligencia artificial en vivo se activa solamente con la suscripción PRO. Sin PRO, las respuestas vienen de la base escrita, con respaldo bíblico.<br>
     Las respuestas son una imitación fiel, con base en la Escritura: nunca inventan citas.
     Si atraviesas una crisis, busca también ayuda humana y profesional cercana.
     La oración acompaña, nunca sustituye, la atención médica.
@@ -1252,7 +1252,7 @@ function renderFree(){
   $("proState").textContent = pro ? "✦ PRO" : (proDemo ? "PRO (demostración)" : "Gratis");
   $("freeDots").innerHTML = dots + "<span>" + (pro ? "PRO: ilimitado" : (proDemo ? "PRO (demostración): ilimitado" :
     (fs.left > 0 ? fs.left + " de " + FREE_PER_DAY + " preguntas gratis hoy" : "Sin preguntas gratis hoy"))) + "</span>";
-  $("freeNote").textContent = pro ? "PRO activo hasta " + jtrProState().untilText + ". La IA en vivo aún no está conectada." : (proDemo ? "Estás viendo la experiencia PRO. La IA en vivo aún no está conectada." :
+  $("freeNote").textContent = pro ? "PRO activo hasta " + jtrProState().untilText + "." : (proDemo ? "Estás viendo la experiencia PRO." :
     (fs.left > 0 ? "Gratis: 3 preguntas al día con respuestas de la base escrita. PRO: ilimitadas, con respuestas más profundas." :
     "Mañana vuelven tus 3 preguntas gratis. Con PRO no tendrías que esperar."));
 }
@@ -1295,6 +1295,21 @@ function findTopic(q){
   });
   return bestScore >= 3 ? best : null;
 }
+function closestTopic(q){
+  var nq = " " + norm(q) + " ";
+  var best = null, bestScore = 0;
+  KB.forEach(function(t){
+    var score = 0;
+    var skip = DEMO_SKIP[t.id] || [];
+    var allKeys = (t.keys||[]).concat(DEMO_KEYS[t.id] || []);
+    allKeys.forEach(function(k){
+      if(skip.indexOf(norm(k)) !== -1) return;
+      score += keyScore(nq, k);
+    });
+    if(score > bestScore){ bestScore = score; best = t; }
+  });
+  return bestScore > 0 ? best : null;
+}
 function askTopic(id, countIt){
   var t = KB.find(function(x){ return x.id === id; });
   if(!t) return;
@@ -1306,20 +1321,52 @@ function askTopic(id, countIt){
   }
   showAnswer(t, $("q").value || t.chip);
 }
+var WORKER_URL = "https://jesus-te-responde-ai.luismanuelbenales.workers.dev/ask";
+function aiState(){
+  var s = storeGet("jtr_ai", null);
+  var today = dayKey(new Date());
+  if(!s || s.day !== today){ s = {day: today, count: 0}; }
+  return s;
+}
+function askAI(q){
+  var closest = closestTopic(q);
+  if(!closest){ showReserve(q); return; }
+  var st = aiState();
+  if(st.count >= 10){ showReserve(q); return; }
+  $("answerTag").innerHTML = "";
+  $("answerText").textContent = "Dame un momento, hijo mío…";
+  $("answerQuote").textContent = "";
+  $("answerRef").textContent = "";
+  $("answerPrayer").textContent = "";
+  $("answerCard").style.display = "block";
+  var ctrl = new AbortController();
+  var timer = setTimeout(function(){ ctrl.abort(); }, 25000);
+  fetch(WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ device: jtrDeviceId(), question: q, topic: { id: closest.id, voice: closest.voice, quote: closest.quote, ref: closest.ref } }),
+    signal: ctrl.signal
+  }).then(function(r){ clearTimeout(timer); if(!r.ok) throw new Error("http"); return r.json(); }).then(function(d){
+    if(!d || typeof d.text !== "string" || !d.text.trim() || d.text.length > 2000){ showReserve(q); return; }
+    var st2 = aiState(); st2.count += 1; storeSet("jtr_ai", st2);
+    var t = { id: closest.id, chip: q, voice: d.text.trim(), quote: closest.quote, ref: closest.ref, prayer: closest.prayer, aiOnly: true };
+    showAnswer(t, q);
+  }).catch(function(){ clearTimeout(timer); showReserve(q); });
+}
 function ask(){
   var q = $("q").value.trim();
   if(!q){ $("q").focus(); $("q").placeholder = "Escríbeme tu pregunta primero…"; return; }
   if(!proUnlimited()){
     var fs = freeState();
     if(fs.left <= 0){ openSheet(); return; }
-  }
-  if(!proUnlimited()){
-    var fs2 = freeState();
-    fs2.left = Math.max(0, fs2.left - 1);
-    storeSet("jtr_free", fs2);
+    fs.left = Math.max(0, fs.left - 1);
+    storeSet("jtr_free", fs);
   }
   var t = findTopic(q);
-  if(!t){ showReserve(q); return; }
+  if(!t){
+    if(proUnlimited()){ askAI(q); return; }
+    showReserve(q); return;
+  }
   showAnswer(t, q);
 }
 function showReserve(q){
@@ -1335,7 +1382,7 @@ function showReserve(q){
 function showAnswer(t, q){
   currentTopic = t;
   stopSpeak();
-  var isProSample = proUnlimited() && !!PRO_EXTRA[t.id];
+  var isProSample = proUnlimited() && !t.aiOnly && !!PRO_EXTRA[t.id];
   $("answerTag").innerHTML = isProSample ? '<span class="pro-tag">✦ Muestra de respuesta PRO</span>' : "";
   var text = t.voice + (isProSample ? "\n\n" + PRO_EXTRA[t.id] : "");
   $("answerText").textContent = text;
@@ -1516,7 +1563,7 @@ function enableProDemo(){
   renderFree();
   var note = document.createElement("p");
   note.className = "hint";
-  note.textContent = "Modo PRO activado en esta vista previa: preguntas ilimitadas y muestras de respuestas profundas. La IA en vivo aún no está conectada.";
+  note.textContent = "Modo PRO activado en esta vista previa: preguntas ilimitadas y muestras de respuestas profundas.";
   note.style.cssText = "margin-top:10px;color:#7a5b12";
   $("freeNote").parentNode.appendChild(note);
   $("q").focus();
