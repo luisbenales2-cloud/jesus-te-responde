@@ -1,1 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jesús Te Responde</title>
+    <style>
+        :root {
+            --primary-color: #795548;
+            --secondary-color: #d7ccc8;
+            --bg-color: #f4f1ea;
+            --card-bg: #ffffff;
+            --text-color: #2c2c2c;
+            --accent-gold: #c5a059;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            background-color: var(--primary-color);
+            color: #ffffff;
+            padding: 1.5rem;
+            text-align: center;
+            border-bottom: 4px solid var(--accent-gold);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            letter-spacing: 1px;
+        }
+        header p {
+            margin: 0.5rem 0 0 0;
+            font-style: italic;
+            color: var(--secondary-color);
+            font-size: 0.95rem;
+        }
+        main {
+            flex: 1;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        .search-container {
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 0.8rem 1rem;
+            font-size: 1rem;
+            border: 2px solid var(--secondary-color);
+            border-radius: 8px;
+            outline: none;
+            background-color: #fff;
+        }
+        input[type="text"]:focus {
+            border-color: var(--accent-gold);
+        }
+        button.search-btn {
+            padding: 0.8rem 1.2rem;
+            background-color: var(--accent-gold);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button.search-btn:hover {
+            background-color: #b08d46;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            margin-bottom: 1.5rem;
+            border-left: 5px solid var(--accent-gold);
+        }
+        .card h2 {
+            margin-top: 0;
+            color: var(--primary-color);
+            font-size: 1.3rem;
+        }
+        .response-text {
+            line-height: 1.6;
+            font-size: 1.05rem;
+            white-space: pre-line;
+        }
+        footer {
+            text-align: center;
+            padding: 1rem;
+            background-color: #e4ded7;
+            font-size: 0.85rem;
+            color: #555;
+            border-top: 1px solid #d0c8be;
+        }
+        .loading {
+            font-style: italic;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
 
+    <header>
+        <h1>Jesús Te Responde</h1>
+<p>Consuelo, guía y sabiduría en la Palabra</p>
+    </header>
+
+    <main>
+        <div class="search-container">
+            <input type="text" id="q" placeholder="Pregúntale al Maestro con fe..." onkeydown="if(event.key === 'Enter') handleSearch()">
+            <button class="search-btn" onclick="handleSearch()">Preguntar</button>
+        </div>
+
+        <div id="result-area" class="card" style="display: none;">
+            <h2 id="result-title">Palabra del Maestro</h2>
+            <div id="result-content" class="response-text"></div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Enigma Producciones Digitales &bull; Diseñado con fe y devoción</p>
+    </footer>
+
+    <script>
+        const WORKER_URL = "https://jesus-te-responde.luis-manuel-benales.workers.dev"; // Reemplaza con tu URL exacta de Cloudflare Worker si cambia
+
+        // Base de conocimientos local (KB) para respuestas inmediatas de temas clave
+        const KB = [
+            {
+                id: "iglesia",
+                chip: "iglesia catolica",
+                keys: ["iglesia", "catolica", "fundacion", "pedro", "roca"],
+                voice: "Mi amado hijo, mi Iglesia es el Cuerpo Místico que fundé sobre la roca firme de Pedro. Es la barca que surca los tiempos, custodiando los sacramentos y la sagrada tradición para guiar a la humanidad hacia el Reino de los Cielos con amor y verdad."
+            },
+            {
+                id: "maria",
+                chip: "la santisima virgen maria",
+                keys: ["maria", "virgen", "madre", "madre mia", "guadalupe", "intercesora"],
+                voice: "Hijo mío, mi Madre Santísima es el sagrario donde tomé carne humana por obra del Espíritu Santo. Ella es la medianera de gracia, madre amorosa que cuida de mis hermanos con ternura maternal y nos lleva siempre de la mano hacia mi Sagrado Corazón."
+            },
+            {
+                id: "sacramentos",
+                chip: "los sacramentos",
+                keys: ["sacramentos", "bautismo", "confesion", "eucaristia", "comunion", "misa"],
+                voice: "Los sacramentos son las fuentes vivas de mi gracia derramada para sanar, fortalecer y santificar sus almas. En la Eucaristía me entrego por completo como alimento de vida eterna, y en la Reconciliación restauro el vestido blanco de su espíritu con misericordia infinita."
+            },
+            {
+                id: "sufrimiento",
+                chip: "dolor y sufrimiento",
+                keys: ["sufrimiento", "dolor", "cruz", "tristeza", "prueba"],
+                voice: "No temas al sufrimiento, hijo mío; únelo a mi cruz redentora en silencio y confianza. Cada lágrima es recogida en mis manos y transformada en gracia fecunda para tu salvación y la de tus seres queridos. Nunca estás solo en el camino."
+            }
+        ];
+
+        const DEMO_SKIP = {};
+
+        function norm(str) {
+            return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        }
+
+        function keyScore(nq, k) {
+            var nk = norm(k);
+            if(!nk) return 0;
+            if(nq.indexOf(" " + nk + " ") !== -1) return 10;
+            return nq.indexOf(nk) !== -1 ? 3 : 0;
+        }
+
+        function findTopic(q){
+            var nq = " " + norm(q) + " ";
+            var best = null, bestScore = 0;
+            KB.forEach(function(t){
+                var score = 0;
+                var skip = DEMO_SKIP[t.id] || [];
+                var allKeys = (t.keys||[]).concat(DEMO_SKIP[t.id] || []);
+                allKeys.forEach(function(k){
+                    if(skip.indexOf(norm(k)) !== -1) return;
+                    score += keyScore(nq, k);
+                });
+                if(score > bestScore){ bestScore = score; best = t; }
+            });
+            if (bestScore >= 3) {
+                return best;
+            }
+            
+            return {
+                id: "ia-dinamica",
+                chip: q,
+                voice: "Un momento, hijo mío, medito tu pregunta en la Palabra...",
+                isGeminiAI: true,
+                userQuery: q
+            };
+        }
+
+        function closestTopic(q){
+            var nq = " " + norm(q) + " ";
+            var best = null, bestScore = 0;
+            KB.forEach(function(t){
+                var score = 0;
+                var skip = DEMO_SKIP[t.id] || [];
+                var allKeys = (t.keys||[]).concat(DEMO_SKIP[t.id] || []);
+                allKeys.forEach(function(k){
+                    if(skip.indexOf(norm(k)) !== -1) return;
+                    score += keyScore(nq, k);
+                });
+                if(score > bestScore){ bestScore = score; best = t; }
+            });
+            if (bestScore > 0) {
+                return best;
+            }
+            
+            return {
+                id: "ia-dinamica",
+                chip: q,
+                voice: "Un momento, hijo mío, medito tu pregunta en la Palabra...",
+                isGeminiAI: true,
+                userQuery: q
+            };
+        }
+
+        async function handleSearch() {
+            const inputVal = document.getElementById("q").value;
+            if (!inputVal.trim()) return;
+
+            const resultArea = document.getElementById("result-area");
+            const resultTitle = document.getElementById("result-title");
+            const resultContent = document.getElementById("result-content");
+
+            resultArea.style.display = "block";
+            resultTitle.innerText = "Reflexión del Maestro";
+            resultContent.innerHTML = "<span class='loading'>Meditando la respuesta en el espíritu...</span>";
+
+            // Buscar primero en la base de conocimientos local
+            let match = findTopic(inputVal);
+
+            if (match && match.isGeminiAI) {
+                // Si entra aquí, invocamos dinámicamente a Cloudflare Worker / Gemini
+                try {
+                    const response = await fetch(WORKER_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ prompt: inputVal })
+                    });
+                    
+                    const data = await response.json();
+                    if (data && data.reply) {
+                        resultContent.innerText = data.reply;
+                    } else {
+                        resultContent.innerText = "La paz esté contigo, hijo mío. Medita en mi palabra y confía en los designios del Padre.";
+                    }
+                } catch (err) {
+                    resultContent.innerText = "Hijo mío, en este momento la comunicación terrenal presenta obstáculos, pero mi amor y mi paz permanecen siempre contigo en el silencio de tu oración.";
+                }
+            } else if (match) {
+                // Muestra la respuesta local predefinida con tono de maestro
+                resultTitle.innerText = match.chip.toUpperCase();
+                resultContent.innerText = match.voice;
+            } else {
+                resultContent.innerText = "La paz sea contigo, hijo mío. Busca en tu interior con fe y hallarás la respuesta en la verdad de mi Evangelio.";
+            }
+        }
+    </script>
+</body>
+  </html>
+  
