@@ -1293,8 +1293,19 @@ function findTopic(q){
     });
     if(score > bestScore){ bestScore = score; best = t; }
   });
-  return bestScore >= 3 ? best : null;
-}
+      if (bestScore >= 3) {
+        return best;
+    }
+    
+    return {
+        id: "ia-dinamica",
+        chip: q,
+        voice: "Un momento, hijo mío, medito tu pregunta en la Palabra...",
+        isGeminiAI: true,
+        userQuery: q
+    };
+
+
 function closestTopic(q){
   var nq = " " + norm(q) + " ";
   var best = null, bestScore = 0;
