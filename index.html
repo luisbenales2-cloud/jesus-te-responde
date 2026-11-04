@@ -1,279 +1,335 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jesús Te Responde</title>
-    <style>
-        :root {
-            --primary-color: #795548;
-            --secondary-color: #d7ccc8;
-            --bg-color: #f4f1ea;
-            --card-bg: #ffffff;
-            --text-color: #2c2c2c;
-            --accent-gold: #c5a059;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-        header {
-            background-color: var(--primary-color);
-            color: #ffffff;
-            padding: 1.5rem;
-            text-align: center;
-            border-bottom: 4px solid var(--accent-gold);
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-        header h1 {
-            margin: 0;
-            font-size: 1.8rem;
-            letter-spacing: 1px;
-        }
-        header p {
-            margin: 0.5rem 0 0 0;
-            font-style: italic;
-            color: var(--secondary-color);
-            font-size: 0.95rem;
-        }
-        main {
-            flex: 1;
-            max-width: 800px;
-            width: 100%;
-            margin: 0 auto;
-            padding: 1rem;
-            box-sizing: border-box;
-        }
-        .search-container {
-            margin-bottom: 1.5rem;
-            display: flex;
-            gap: 0.5rem;
-        }
-        input[type="text"] {
-            flex: 1;
-            padding: 0.8rem 1rem;
-            font-size: 1rem;
-            border: 2px solid var(--secondary-color);
-            border-radius: 8px;
-            outline: none;
-            background-color: #fff;
-        }
-        input[type="text"]:focus {
-            border-color: var(--accent-gold);
-        }
-        button.search-btn {
-            padding: 0.8rem 1.2rem;
-            background-color: var(--accent-gold);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background 0.2s;
-        }
-        button.search-btn:hover {
-            background-color: #b08d46;
-        }
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 10px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-            margin-bottom: 1.5rem;
-            border-left: 5px solid var(--accent-gold);
-        }
-        .card h2 {
-            margin-top: 0;
-            color: var(--primary-color);
-            font-size: 1.3rem;
-        }
-        .response-text {
-            line-height: 1.6;
-            font-size: 1.05rem;
-            white-space: pre-line;
-        }
-        footer {
-            text-align: center;
-            padding: 1rem;
-            background-color: #e4ded7;
-            font-size: 0.85rem;
-            color: #555;
-            border-top: 1px solid #d0c8be;
-        }
-        .loading {
-            font-style: italic;
-            color: #777;
-        }
-    </style>
-</head>
-<body>
-
-    <header>
-        <h1>Jesús Te Responde</h1>
-<p>Consuelo, guía y sabiduría en la Palabra</p>
-    </header>
-
-    <main>
-        <div class="search-container">
-            <input type="text" id="q" placeholder="Pregúntale al Maestro con fe..." onkeydown="if(event.key === 'Enter') handleSearch()">
-            <button class="search-btn" onclick="handleSearch()">Preguntar</button>
-        </div>
-
-        <div id="result-area" class="card" style="display: none;">
-            <h2 id="result-title">Palabra del Maestro</h2>
-            <div id="result-content" class="response-text"></div>
-        </div>
-    </main>
-
-    <footer>
-        <p>&copy; 2026 Enigma Producciones Digitales &bull; Diseñado con fe y devoción</p>
-    </footer>
-
     <script>
-        const WORKER_URL = "https://jesus-te-responde.luis-manuel-benales.workers.dev"; // Reemplaza con tu URL exacta de Cloudflare Worker si cambia
+        const WORKER_URL = "https://jesus-te-responde.luis-manuel-benales.workers.dev";
+        let isPro = localStorage.getItem("jtr_pro") === "true";
+        let freeLeft = parseInt(localStorage.getItem("jtr_free_left") || "3");
+        let lastResponseText = "";
+        let favorites = JSON.parse(localStorage.getItem("jtr_favs") || "[]");
+        let history = JSON.parse(localStorage.getItem("jtr_history") || "[]");
 
-        // Base de conocimientos local (KB) para respuestas inmediatas de temas clave
+        // Generador de código único de dispositivo basado en hardware y navegador
+        function getDeviceCode() {
+            let id = localStorage.getItem("jtr_device_id");
+            if (!id) {
+                const raw = navigator.userAgent + screen.width + screen.height + Math.random();
+                let hash = 0;
+                for (let i = 0; i < raw.length; i++) {
+                    hash = ((hash << 5) - hash) + raw.charCodeAt(i);
+                    hash |= 0;
+                }
+                const codeStr = Math.abs(hash).toString(36).toUpperCase().substring(0, 6);
+                id = "UYS-" + (codeStr.length < 6 ? (codeStr + "CUM").substring(0, 6) : codeStr);
+                localStorage.setItem("jtr_device_id", id);
+            }
+            return id;
+        }
+
+        // Base de Conocimientos Local Masiva (Fallback Offline profundo)
         const KB = [
             {
-                id: "iglesia",
-                chip: "iglesia catolica",
-                keys: ["iglesia", "catolica", "fundacion", "pedro", "roca"],
-                voice: "Mi amado hijo, mi Iglesia es el Cuerpo Místico que fundé sobre la roca firme de Pedro. Es la barca que surca los tiempos, custodiando los sacramentos y la sagrada tradición para guiar a la humanidad hacia el Reino de los Cielos con amor y verdad."
+                id: "ansiedad",
+                chip: "Tengo miedo y ansiedad",
+                keys: ["miedo", "ansiedad", "angustia", "temor", "futuro", "preocupacion"],
+                voice: "Hijo mío, no se turbe tu corazón ni tenga miedo. En el mundo tendrás aflicciones, pero confía, yo he vencido al mundo. Cada mañana se renueva la misericordia del Padre; no te afanes por el mañana, que el día de mañana traerá su propio afán. Ven a mí con todas tus cargas y descansa en mi paz que sobrepasa todo entendimiento. (Juan 14, 27 / Mateo 6, 34)"
             },
             {
-                id: "maria",
-                chip: "la santisima virgen maria",
-                keys: ["maria", "virgen", "madre", "madre mia", "guadalupe", "intercesora"],
-                voice: "Hijo mío, mi Madre Santísima es el sagrario donde tomé carne humana por obra del Espíritu Santo. Ella es la medianera de gracia, madre amorosa que cuida de mis hermanos con ternura maternal y nos lleva siempre de la mano hacia mi Sagrado Corazón."
+                id: "tristeza",
+                chip: "Estoy triste y cansado",
+                keys: ["triste", "tristeza", "cansado", "fatiga", "abatido", "solo"],
+                voice: "Hijo mío, cuando te sientas cansado y abatido, recuerda que estoy a tu lado aunque tus ojos no me vean. Cercano estoy a los quebrantados de corazón. Ven a mis brazos, tú que estás trabajado y cargado, y yo te haré descansar. Mi gracia es suficiente para ti, porque mi poder se perfecciona en tu debilidad. (Mateo 11, 28 / Salmos 34, 18)"
             },
             {
-                id: "sacramentos",
-                chip: "los sacramentos",
-                keys: ["sacramentos", "bautismo", "confesion", "eucaristia", "comunion", "misa"],
-                voice: "Los sacramentos son las fuentes vivas de mi gracia derramada para sanar, fortalecer y santificar sus almas. En la Eucaristía me entrego por completo como alimento de vida eterna, y en la Reconciliación restauro el vestido blanco de su espíritu con misericordia infinita."
+                id: "perdon",
+                chip: "No puedo perdonar",
+                keys: ["perdon", "perdonar", "ofensa", "rencor", "odio", "herida"],
+                voice: "Hijo mío, el perdón no es un sentimiento pasajero, es una decisión heroica del alma sostenida por mi gracia. Cuando te preguntes cuántas veces perdonar, recuerda que te he amado primero: perdona no siete veces, sino setenta veces siete. Deja tu carga de rencor en el altar y mi paz sanará tus heridas. (Mateo 18, 22 / Colosenses 3, 13)"
             },
             {
-                id: "sufrimiento",
-                chip: "dolor y sufrimiento",
-                keys: ["sufrimiento", "dolor", "cruz", "tristeza", "prueba"],
-                voice: "No temas al sufrimiento, hijo mío; únelo a mi cruz redentora en silencio y confianza. Cada lágrima es recogida en mis manos y transformada en gracia fecunda para tu salvación y la de tus seres queridos. Nunca estás solo en el camino."
+                id: "familia",
+                chip: "Mi matrimonio y mi familia",
+                keys: ["matrimonio", "esposa", "hijos", "familia", "hogar", "pelea"],
+                voice: "Hijo mío, santifica tu hogar con la oración constante y el amor paciente. El amor todo lo sufre, todo lo cree, todo lo espera, todo lo soporta. Que ninguna palabra amarga salga de vuestra boca, sino la que sea buena para la edificación. Yo soy el invitado invisible en tu mesa y el cimiento firme de tu casa. (1 Corintios 13, 7 / Efesios 4, 29)"
+            },
+            {
+                id: "dinero",
+                chip: "Problemas de dinero y trabajo",
+                keys: ["dinero", "trabajo", "empleo", "deudas", "crisis", "provision"],
+                voice: "Hijo mío, busca primeramente el reino de Dios y su justicia, y todas estas cosas te serán añadidas. Tu Padre celestial sabe de qué cosas tienes necesidad antes de que se las pidas. Sé fiel en lo poco y pon tu trabajo en mis manos; yo abriré sendas en el desierto y proveeré el pan de cada día para tu hogar. (Mateo 6, 33 / Filipenses 4, 19)"
+            },
+            {
+                id: "duelo",
+                chip: "Perdí a un ser querido",
+                keys: ["muerte", "perdida", "duelo", "fallecio", "luto", "partida"],
+                voice: "Hijo mío, no llores como los que no tienen esperanza. Yo soy la resurrección y la vida; el que cree en mí, aunque esté muerto, vivirá. Tus seres queridos que partieron en mi paz descansan ya en los brazos misericordiosos del Padre, donde no hay llanto ni dolor. Nos volveremos a ver en la eternidad. (Juan 11, 25 / Apocalipsis 21, 4)"
+            },
+            {
+                id: "fe",
+                chip: "Mi fe es débil, tengo dudas",
+                keys: ["fe", "dudas", "creer", "silencio", "debil"],
+                voice: "Hijo mío, si tu fe fuera tan pequeña como un grano de mostaza, le dirías a este monte que se mueva y se movería. Yo conozco tus luchas en el silencio. Clama como el padre de aquel muchacho: '¡Señor, creo; ayuda mi incredulidad!'. Mi mano siempre está extendida para sostenerte cuando comiences a hundirte. (Mateo 17, 20 / Marcos 9, 24)"
+            },
+            {
+                id: "salud",
+                chip: "Oración por la salud",
+                keys: ["salud", "enfermedad", "sanacion", "enfermo", "dolor", "cuerpo"],
+                voice: "Hijo mío, yo soy el Señor tu sanador. Por mis llagas fuiste curado. Pon tu salud en mis manos y permite que mi Espíritu infunda fortaleza, alivio y paz en cada célula de tu cuerpo. Confía en mi amor misericordioso, porque para Dios nada hay imposible. (Isaías 53, 5 / Lucas 1, 37)"
             }
         ];
 
-        const DEMO_SKIP = {};
-
-        function norm(str) {
-            return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        }
-
-        function keyScore(nq, k) {
-            var nk = norm(k);
-            if(!nk) return 0;
-            if(nq.indexOf(" " + nk + " ") !== -1) return 10;
-            return nq.indexOf(nk) !== -1 ? 3 : 0;
-        }
-
-        function findTopic(q){
-            var nq = " " + norm(q) + " ";
-            var best = null, bestScore = 0;
-            KB.forEach(function(t){
-                var score = 0;
-                var skip = DEMO_SKIP[t.id] || [];
-                var allKeys = (t.keys||[]).concat(DEMO_SKIP[t.id] || []);
-                allKeys.forEach(function(k){
-                    if(skip.indexOf(norm(k)) !== -1) return;
-                    score += keyScore(nq, k);
-                });
-                if(score > bestScore){ bestScore = score; best = t; }
-            });
-            if (bestScore >= 3) {
-                return best;
+        // Base de Datos de Oraciones Guiadas y Textos Devocionales
+        const ORACIONES_DB = {
+            padrenuestro: {
+                titulo: "Padre Nuestro y Ave María",
+                texto: "Padre nuestro, que estás en el cielo,\nsantificado sea tu Nombre;\nvenga a nosotros tu reino;\nhágase tu voluntad en la tierra como en el cielo.\nDanos hoy nuestro pan de cada día;\nperdona nuestras ofensas,\ncomo también nosotros perdonamos a los que nos ofenden;\nno nos dejes caer en la tentación,\ny líbranos del mal. Amén.\n\nDios te salve, María, llena eres de gracia, el Señor es contigo;\nbendita tú eres entre todas las mujeres,\ny bendito es el fruto de tu vientre, Jesús.\nSanta María, Madre de Dios,\nruega por nosotros, pecadores,\nahora y en la hora de nuestra muerte. Amén."
+            },
+            espiritusanto: {
+                titulo: "Invocación al Espíritu Santo",
+                texto: "Ven, Espíritu Santo, llena los corazones de tus fieles\ny enciende en ellos el fuego de tu amor.\nEnvía, Señor, tu Espíritu y todo será creado,\ny renovarás la faz de la tierra.\n\nOh Dios, que has instruido los corazones de tus fieles con la luz del Espíritu Santo;\nconcédenos que, gustando lo recto, gocemos de su consuelo\ny sintamos siempre su protección.\nPor Jesucristo Nuestro Señor. Amén."
+            },
+            matrimonio: {
+                titulo: "Oración por la Paz en el Matrimonio",
+                texto: "Señor Jesús, te pedimos por nuestro hogar y nuestro matrimonio.\nColoca tu amor divino en el centro de nuestra unión.\nEnséñanos a perdonarnos rápido, a escucharnos con paciencia\ny a no dejar que la ira oscurezca nuestro día.\nQue nuestra casa sea un refugio de paz, comprensión y respeto mutuo,\ndonde tu presencia bendiga cada amanecer y cada noche. Amén."
+            },
+            hijos: {
+                titulo: "Oración por la Protección de los Hijos",
+                texto: "Padre Celestial, pongo la vida de mis hijos en tus santas manos.\nCúbre ellos con tu Preciosísima Sangre y envíales a tus santos ángeles\npara que los guarden en todos sus caminos.\nLíbralos de todo mal, tentación y peligro, tanto visible como invisible.\nConcédeles sabiduría, salud, temor de Dios y un corazón noble y generoso. Amén."
+            },
+            salud: {
+                titulo: "Oración por la Salud y Sanación",
+                texto: "Señor Jesús, tú que recorriste los poblados sanando toda enfermedad y dolencia,\nmira con misericordia mi cuerpo y mi espíritu.\nExtiende tu mano bendita sobre mí y sobre los enfermos que sufren.\nDevuélvenos la salud integral, calma nuestros dolores\ny danos la fortaleza necesaria para ofrecer esta prueba unidos a tu cruz.\nEn ti confío, mi Dios y Salvador. Amén."
+            },
+            prosperidad: {
+                titulo: "Oración por la Provisión y el Trabajo",
+                texto: "Señor, tú eres mi pastor y nada me faltará.\nBendice las obras de mis manos, mi empleo y mis fuentes de ingreso.\nAbre puertas de oportunidad justa y honrada,\npara que en mi hogar nunca falte el sustento diario.\nQuita la ansiedad por el mañana y enséñanos a ser administradores sabios\nde tus bendiciones. Amén."
+            },
+            fe: {
+                titulo: "Oración para Aumentar la Fe y la Sabiduría",
+                texto: "Señor, aumenta nuestra fe cuando sigan soplando vientos contrarios.\nIlumina nuestro entendimiento con tu Espíritu\npara tomar decisiones sabias según tu corazón y no según el mundo.\nQue ante cada dificultad nuestra respuesta sea la oración\ny nuestra confianza inquebrantable en tu providencia. Amén."
             }
-            
-            return {
-                id: "ia-dinamica",
-                chip: q,
-                voice: "Un momento, hijo mío, medito tu pregunta en la Palabra...",
-                isGeminiAI: true,
-                userQuery: q
-            };
-        }
+        };
 
-        function closestTopic(q){
-            var nq = " " + norm(q) + " ";
-            var best = null, bestScore = 0;
-            KB.forEach(function(t){
-                var score = 0;
-                var skip = DEMO_SKIP[t.id] || [];
-                var allKeys = (t.keys||[]).concat(DEMO_SKIP[t.id] || []);
-                allKeys.forEach(function(k){
-                    if(skip.indexOf(norm(k)) !== -1) return;
-                    score += keyScore(nq, k);
-                });
-                if(score > bestScore){ bestScore = score; best = t; }
-            });
-            if (bestScore > 0) {
-                return best;
+        // Estructura del Santo Rosario Automático por Día de la Semana
+        function cargarRosarioDelDia() {
+            const d = new Date().getDay(); // 0: Dom, 1: Lun, 2: Mar, 3: Mié, 4: Jue, 5: Vie, 6: Sáb
+            let tituloRosario = "";
+            let misteriosTexto = "";
+
+            if (d === 1 || d === 6) {
+                tituloRosario = "Misterios Gozosos (Lunes y Sábados)";
+                misteriosTexto = "1. La Encarnación del Hijo de Dios.<br>2. La Visitación de Nuestra Señora a Santa Isabel.<br>3. El Nacimiento del Hijo de Dios en Belén.<br>4. La Presentación del Niño Jesús en el Templo.<br>5. El Niño Jesús perdido y hallado en el Templo.";
+            } else if (d === 2 || d === 5) {
+                tituloRosario = "Misterios Dolorosos (Martes y Viernes)";
+                misteriosTexto = "1. La Oración de Jesús en el Huerto.<br>2. La Flagelación del Señor.<br>3. La Coronación de espinas.<br>4. Jesús con la cruz a cuestas camino al Calvario.<br>5. La Crucifixión y muerte de Jesús.";
+            } else if (d === 3 || d === 0) {
+                tituloRosario = "Misterios Gloriosos (Miércoles y Domingos)";
+                misteriosTexto = "1. La Resurrección del Señor.<br>2. La Ascensión del Señor a los Cielos.<br>3. La Venida del Espíritu Santo sobre María y los Apóstoles.<br>4. La Asunción de la Virgen María a los Cielos.<br>5. La Coronación de María como Reina de todo lo creado.";
+            } else if (d === 4) {
+                tituloRosario = "Misterios Luminosos (Jueves)";
+                misteriosTexto = "1. El Bautismo de Jesús en el río Jordán.<br>2. La autorrevelación de Jesús en las bodas de Caná.<br>3. El anuncio del Reino de Dios y la invitación a la conversión.<br>4. La Transfiguración de Jesús en el monte Tabor.<br>5. La institución de la Sagrada Eucaristía.";
             }
-            
-            return {
-                id: "ia-dinamica",
-                chip: q,
-                voice: "Un momento, hijo mío, medito tu pregunta en la Palabra...",
-                isGeminiAI: true,
-                userQuery: q
-            };
+
+            document.getElementById("rosarioDiaSub").innerText = tituloRosario;
+            document.getElementById("rosarioContenido").innerHTML = `<b>Meditación de hoy:</b><br>${misteriosTexto}<br><br><i>Guía: «En el nombre del Padre, del Hijo y del Espíritu Santo. Amén. Señor, abre mis labios y mi boca proclamará tu alabanza...»</i>`;
         }
 
-        async function handleSearch() {
-            const inputVal = document.getElementById("q").value;
-            if (!inputVal.trim()) return;
+        window.onload = function() {
+            document.getElementById("deviceCodeDisplay").innerText = getDeviceCode();
+            updateProUI();
+            renderLists();
+            cargarRosarioDelDia();
+        };
 
-            const resultArea = document.getElementById("result-area");
-            const resultTitle = document.getElementById("result-title");
-            const resultContent = document.getElementById("result-content");
+        function switchTab(tabName) {
+            const cBtn = document.getElementById("tabConsultaBtn");
+            const oBtn = document.getElementById("tabOracionesBtn");
+            const cSec = document.getElementById("sectionConsulta");
+            const oSec = document.getElementById("sectionOraciones");
 
-            resultArea.style.display = "block";
-            resultTitle.innerText = "Reflexión del Maestro";
-            resultContent.innerHTML = "<span class='loading'>Meditando la respuesta en el espíritu...</span>";
-
-            // Buscar primero en la base de conocimientos local
-            let match = findTopic(inputVal);
-
-            if (match && match.isGeminiAI) {
-                // Si entra aquí, invocamos dinámicamente a Cloudflare Worker / Gemini
-                try {
-                    const response = await fetch(WORKER_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ prompt: inputVal })
-                    });
-                    
-                    const data = await response.json();
-                    if (data && data.reply) {
-                        resultContent.innerText = data.reply;
-                    } else {
-                        resultContent.innerText = "La paz esté contigo, hijo mío. Medita en mi palabra y confía en los designios del Padre.";
-                    }
-                } catch (err) {
-                    resultContent.innerText = "Hijo mío, en este momento la comunicación terrenal presenta obstáculos, pero mi amor y mi paz permanecen siempre contigo en el silencio de tu oración.";
-                }
-            } else if (match) {
-                // Muestra la respuesta local predefinida con tono de maestro
-                resultTitle.innerText = match.chip.toUpperCase();
-                resultContent.innerText = match.voice;
+            if (tabName === 'consulta') {
+                cBtn.classList.add("active");
+                oBtn.classList.remove("active");
+                cSec.style.display = "block";
+                oSec.style.display = "none";
             } else {
-                resultContent.innerText = "La paz sea contigo, hijo mío. Busca en tu interior con fe y hallarás la respuesta en la verdad de mi Evangelio.";
+                oBtn.classList.add("active");
+                cBtn.classList.remove("active");
+                oSec.style.display = "block";
+                cSec.style.display = "none";
             }
         }
-    </script>
-</body>
-  </html>
-  
+
+        function updateProUI() {
+            if (isPro) {
+                document.getElementById("pro-status-badge").innerText = "✦ PRO Activado";
+                document.getElementById("freeCounterText").innerText = "✨ Modo PRO Activo - Consultas Ilimitadas";
+            } else {
+                document.getElementById("freeCounterText").innerText = `⭐⭐⭐ ${freeLeft} de 3 preguntas gratis hoy`;
+            }
+        }
+
+        function askTopic(topicText) {
+            switchTab('consulta');
+            document.getElementById("userQuestion").value = topicText;
+            handleAsk();
+        }
+
+        async function handleAsk() {
+            const q = document.getElementById("userQuestion").value.trim();
+            if (!q) return;
+
+            if (!isPro && freeLeft <= 0) {
+                alert("Has alcanzado el límite de 3 preguntas gratis de hoy. Activa el modo PRO por WhatsApp para seguir conversando con el Maestro.");
+                return;
+            }
+
+            const responseArea = document.getElementById("responseArea");
+            const responseText = document.getElementById("responseText");
+            
+            responseArea.style.display = "block";
+            responseText.innerHTML = "<i>Meditando tu respuesta en las Sagradas Escrituras...</i>";
+
+            let reply = "";
+
+            try {
+                const res = await fetch(WORKER_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ prompt: q })
+                });
+                const data = await res.json();
+                if (data && data.reply) {
+                    reply = data.reply;
+                }
+            } catch (e) {
+                console.log("Modo Offline activado. Usando base de conocimientos local.");
+            }
+
+            // Fallback inteligente a la Base de Conocimientos Local (KB)
+            if (!reply) {
+                const normQ = q.toLowerCase();
+                const match = KB.find(k => k.keys.some(key => normQ.includes(key)));
+                if (match) {
+                    reply = match.voice;
+                } else {
+                    reply = "Hijo mío, en el silencio de la oración y de la fe hallarás la luz que buscas. Guarda mi palabra en tu corazón y confía plenamente en la providencia del Padre, que cuida de ti en todo momento.";
+                }
+            }
+
+            responseText.innerText = reply;
+            lastResponseText = reply;
+
+            if (!isPro) {
+                freeLeft--;
+                localStorage.setItem("jtr_free_left", freeLeft);
+                updateProUI();
+            }
+
+            history.unshift({ q: q, a: reply });
+            if (history.length > 5) history.pop();
+            localStorage.setItem("jtr_history", JSON.stringify(history));
+            renderLists();
+        }
+
+        // Cargar Oraciones en la sección correspondiente
+        let ultimaOracionTexto = "";
+        function cargarOracion(key) {
+            const item = ORACIONES_DB[key];
+            if (!item) return;
+            document.getElementById("oracionTitulo").innerText = item.titulo;
+            document.getElementById("oracionTexto").innerText = item.texto;
+            document.getElementById("oracionVisor").style.display = "block";
+            ultimaOracionTexto = item.texto;
+        }
+
+        function escucharOracionCargada() {
+            if (ultimaOracionTexto) speakText(ultimaOracionTexto);
+        }
+
+        function iniciarRosarioGuiado() {
+            const rosarioGuiaTexto = "Iniciamos el Santo Rosario. En el nombre del Padre, del Hijo y del Espíritu Santo. Amén. Meditemos con el corazón abierto los misterios de nuestra salvación.";
+            speakText(rosarioGuiaTexto);
+            alert("El guía espiritual ha comenzado la introducción del Santo Rosario. Sigue las cuentas con devoción.");
+        }
+
+        // Síntesis de Voz
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'es-ES';
+                utterance.pitch = 0.93;
+                utterance.rate = 0.9;
+                window.speechSynthesis.speak(utterance);
+            } else {
+                alert("Tu dispositivo no soporta síntesis de voz.");
+            }
+        }
+
+        function speakCurrentResponse() {
+            if (lastResponseText) speakText(lastResponseText);
+        }
+
+        function detenerVoz() {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+        }
+
+        // Reconocimiento de Voz (Micrófono)
+        function startVoiceRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert("El reconocimiento de voz no está disponible en este navegador.");
+                return;
+            }
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'es-ES';
+            recognition.start();
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById("userQuestion").value = transcript;
+                handleAsk();
+            };
+        }
+
+        function shareVerse() {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Jesús Te Responde',
+                    text: '«Yo soy el camino, la verdad y la vida; nadie viene al Padre sino por mí.» - Juan 14, 6',
+                    url: window.location.href
+                });
+            } else {
+                alert("Copiado al portapapeles: «Yo soy el camino, la verdad y la vida.» - Juan 14, 6");
+            }
+        }
+
+        function saveFavorite() {
+            if (!lastResponseText) return;
+            favorites.push(lastResponseText);
+            localStorage.setItem("jtr_favs", JSON.stringify(favorites));
+            renderLists();
+            alert("¡Guardado en tus favoritas!");
+        }
+
+        function renderLists() {
+            const favDiv = document.getElementById("favoritesList");
+            const histDiv = document.getElementById("historyList");
+
+            if (favorites.length > 0) {
+                favDiv.innerHTML = favorites.map(f => `<div style="background:#fff; padding:10px; border-radius:8px; margin-bottom:6px; font-size:0.88rem; border:1px solid #e2d7c3;">${f}</div>`).join("");
+            }
+
+            if (history.length > 0) {
+                histDiv.innerHTML = history.map(h => `<div style="background:#fff; padding:10px; border-radius:8px; margin-bottom:6px; font-size:0.88rem; border:1px solid #e2d7c3;"><b>P:</b> ${h.q}<br><b>R:</b> ${h.a}</div>`).join("");
+            }
+        }
+
+        function redirectToWhatsApp() {
+            const code = getDeviceCode();
+            const msg = encodeURIComponent(`Hola, deseo activar Jesús te responde PRO para mi teléfono con el código único: ${code}`);
+            window.open(`https://wa.me/5804143956441?text=${msg}`, '_blank');
+        }
+
+        function activateProCode() {
+            const key = document.getElementById("proActi
