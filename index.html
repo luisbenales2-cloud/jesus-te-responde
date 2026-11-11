@@ -1280,7 +1280,7 @@ function keyScore(nq, k){
   var re = new RegExp("(^| )" + esc + "( |$)");
   return re.test(nq) ? 3 : 0;
 }
-function findTopic(q){
+function scoreTopics(q){
   var nq = " " + norm(q) + " ";
   var best = null, bestScore = 0;
   KB.forEach(function(t){
@@ -1293,22 +1293,20 @@ function findTopic(q){
     });
     if(score > bestScore){ bestScore = score; best = t; }
   });
-  return bestScore >= 3 ? best : null;
+  return { best: best, bestScore: bestScore };
+}
+function findTopic(q){
+  var r = scoreTopics(q);
+  return r.bestScore >= 3 ? r.best : null;
 }
 function closestTopic(q){
-  var nq = " " + norm(q) + " ";
-  var best = null, bestScore = 0;
-  KB.forEach(function(t){
-    var score = 0;
-    var skip = DEMO_SKIP[t.id] || [];
-    var allKeys = (t.keys||[]).concat(DEMO_KEYS[t.id] || []);
-    allKeys.forEach(function(k){
-      if(skip.indexOf(norm(k)) !== -1) return;
-      score += keyScore(nq, k);
-    });
-    if(score > bestScore){ bestScore = score; best = t; }
-  });
-  return bestScore > 0 ? best : null;
+  var r = scoreTopics(q);
+  // Solo un tema bien atado: una sola palabra suelta (p. ej. "pecado",
+  // 3 puntos) no basta para secuestrar la pregunta a otro tema; con
+  // menos de 5 puntos la pregunta va al modo general, que responde
+  // desde toda la Biblia con coherencia. 5 puntos = una frase + una
+  // palabra, o dos palabras del mismo tema.
+  return r.bestScore >= 5 ? r.best : null;
 }
 function askTopic(id, countIt){
   var t = KB.find(function(x){ return x.id === id; });
@@ -1370,6 +1368,10 @@ function ask(){
     storeSet("jtr_free", fs);
   }
   var t = findTopic(q);
+  // Con PRO, una coincidencia débil (una sola palabra, 3 puntos) no se
+  // queda con la respuesta escrita de otro tema: la IA responde directo
+  // en modo general. Sin PRO todo sigue igual.
+  if(t && proUnlimited() && scoreTopics(q).bestScore < 5){ askAI(q); return; }
   if(!t){
     if(proUnlimited()){ askAI(q); return; }
     showReserve(q); return;
