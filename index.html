@@ -1372,8 +1372,7 @@ function aiState(){
 }
 function askAI(q){
   var closest = closestTopic(q);
-  var st = aiState();
-  if(st.count >= 10){ showReserve(q); return; }
+  // Sin tope diario por decisión del usuario (2026-11-11): el único techo es el nivel gratis de Gemini (500 respuestas/día en total para todos los usuarios).
   $("answerTag").innerHTML = "";
   $("answerText").textContent = "Dame un momento, hijo mío…";
   $("answerQuote").textContent = "";
