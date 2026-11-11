@@ -170,7 +170,7 @@
     </div>
     <p class="hint" id="freeNote" style="margin-top:10px"></p>
     <p class="hint" id="micNote" style="margin-top:6px"></p>
-    <p class="hint" id="voiceRow" style="margin-top:8px">Voz al escuchar: <select id="voiceSelect" aria-label="Voz para escuchar"></select> <span style="font-size:12px">Elige y escucha cada voz.</span></p>
+    <p class="hint" id="voiceRow" style="margin-top:8px">Voz al escuchar: <select id="voiceSelect" aria-label="Voz para escuchar"></select> <span style="font-size:12px">Prueba las voces de la lista y quédate con la que suene más cálida.</span></p>
   </section>
 
   <!-- Sugerencias -->
@@ -1490,11 +1490,21 @@ function voiceLooksMale(name){
   for(var i = 0; i < words.length; i++){ if(JTR_MALE_NAMES.indexOf(words[i]) !== -1){ return true; } }
   return false;
 }
+function voiceScore(v){
+  var n = ((v && v.name) || "").toLowerCase();
+  var l = ((v && v.lang) || "").toLowerCase();
+  var s = 0;
+  if(n.indexOf("google") !== -1){ s += 3; }
+  if(/natural|neural/.test(n)){ s += 2; }
+  if(voiceLooksMale(v.name)){ s += 2; }
+  if(l === "es-us" || l === "es-es"){ s += 1; }
+  return s;
+}
 function pickVoice(voices){
   if(!voices || !voices.length){ return null; }
   var es = voices.filter(function(x){ return /es/i.test(x.lang || ""); });
   var pool = es.length ? es : voices;
-  for(var i = 0; i < pool.length; i++){ if(voiceLooksMale(pool[i].name)){ return pool[i]; } }
+  pool.sort(function(a, b){ return voiceScore(b) - voiceScore(a); });
   return pool[0] || null;
 }
 function voiceKey(v){ return (v && v.voiceURI) || ((v ? (v.name || "") : "") + "|" + (v ? (v.lang || "") : "")); }
@@ -1503,6 +1513,7 @@ function fillVoiceSelect(){
   if(!sel || !synth){ return; }
   var voices = synth.getVoices();
   var es = voices.filter(function(x){ return /^es/i.test(x.lang || ""); });
+  es.sort(function(a, b){ return voiceScore(b) - voiceScore(a); });
   var saved = storeGet("jtr_voice", null);
   var prev = sel.value;
   sel.innerHTML = "";
@@ -1541,7 +1552,7 @@ function previewVoice(){
   var triedPlain = false;
   function say(plain){
     var u = new SpeechSynthesisUtterance("Hola, esta es la voz que leerá las respuestas.");
-    if(!plain){ u.voice = v; u.lang = "es-ES"; u.rate = 0.9; u.pitch = 0.7; }
+    if(!plain){ u.voice = v; u.lang = "es-ES"; u.rate = 0.95; u.pitch = 1.0; }
     else { u.lang = "es-ES"; }
     u.onerror = function(){ if(!triedPlain){ triedPlain = true; say(true); } };
     synth.speak(u);
@@ -1574,7 +1585,7 @@ function speakText(text, btn){
     var u = new SpeechSynthesisUtterance(parts[idx].trim());
     if(!plain && v) u.voice = v;
     u.lang = "es-ES";
-    if(!plain){ u.rate = 0.9; u.pitch = 0.7; }
+    if(!plain){ u.rate = 0.95; u.pitch = 1.0; }
     u.onend = function(){ if(done) return; done = true; idx++; next(); };
     u.onerror = function(){
       if(done) return; done = true;
